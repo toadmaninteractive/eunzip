@@ -7,7 +7,6 @@
 -module(eunzip).
 
 %% Include files
--include_lib("stdlib/include/assert.hrl").
 -include("eunzip.hrl").
 
 %% API
