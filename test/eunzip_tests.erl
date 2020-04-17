@@ -30,6 +30,6 @@ otp_23_readme_filename() ->
     <<"otp_src_23.0-rc2.readme.txt">>.
 
 otp_23_readme_zip() ->
-    Dir = code:priv_dir(?eunzip),
-    Path = filename:join([Dir, "otp_23_readme.zip"]),
+    Dir = code:lib_dir(?eunzip),
+    Path = filename:join([Dir, "test", "files", "otp_23_readme.zip"]),
     iolist_to_binary(Path).
