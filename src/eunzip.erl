@@ -198,18 +198,16 @@ decompress(#unzip_state{central_dir = CentralDir} = UnzipState, CdFileName, Targ
                 ok ->
                     case file:open(TargetFileName, [write, binary, raw]) of
                         {ok, Fd} ->
-                            case stream_init(UnzipState, CdFileName) of
-                                {ok, StreamState} ->
-                                    case decompress_stream(StreamState, Fd) of
-                                        ok ->
-                                            file:close(Fd);
-                                        {error, _Reason} = Error ->
-                                            file:close(Fd),
-                                            file:delete(TargetFileName),
-                                            Error
-                                    end;
-                                {error, Reason} ->
-                                    {error, Reason}
+                            Result = case stream_init(UnzipState, CdFileName) of
+                                {ok, StreamState} -> decompress_stream(StreamState, Fd);
+                                {error, Reason} -> {error, Reason}
+                            end,
+                            file:close(Fd),
+                            case Result of
+                                ok -> ok;
+                                {error, _Reason} = Error ->
+                                    file:delete(TargetFileName),
+                                    Error
                             end;
                         {error, Reason} ->
                             {error, Reason}
