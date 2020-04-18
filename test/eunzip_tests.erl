@@ -43,20 +43,6 @@ entry_test() ->
     ?assertMatch({ok, #cd_entry{file_name = CdFileName}}, eunzip:entry(UnzipState, CdFileName)),
     ?assertEqual(ok, eunzip:close(UnzipState)).
 
-is_file_test() ->
-    OpenResult = eunzip:open(otp_23_readme_zip()),
-    ?assertMatch({ok, _}, OpenResult),
-    {ok, UnzipState} = OpenResult,
-    ?assertEqual({ok, true}, eunzip:is_file(UnzipState, otp_23_readme_filename())),
-    ?assertEqual(ok, eunzip:close(UnzipState)).
-
-is_dir_test() ->
-    OpenResult = eunzip:open(specs_zip()),
-    ?assertMatch({ok, _}, OpenResult),
-    {ok, UnzipState} = OpenResult,
-    ?assertEqual({ok, true}, eunzip:is_dir(UnzipState, specs_dir())),
-    ?assertEqual(ok, eunzip:close(UnzipState)).
-
 verify_test() ->
     OpenResult = eunzip:open(otp_23_readme_zip()),
     ?assertMatch({ok, _}, OpenResult),
@@ -103,18 +89,13 @@ otp_23_readme_filename() ->
 specs_zip() ->
     test_path("specs.zip").
 
-specs_dir() ->
-    <<"specs/">>.
-
 stream_iterator(StreamState, Md5State) ->
     case eunzip:stream_read_chunk(?file_chunk_size, StreamState) of
-        {ok, Data, StreamState1} ->
+        {ok, Data} ->
             Md5State1 = crypto:hash_update(Md5State, Data),
-            eunzip:stream_end(StreamState1),
             {ok, crypto:hash_final(Md5State1)};
         {more, Data, StreamState1} ->
             stream_iterator(StreamState1, crypto:hash_update(Md5State, Data));
         {error, Reason, StreamState} ->
-            eunzip:stream_end(StreamState),
             {error, Reason}
     end.

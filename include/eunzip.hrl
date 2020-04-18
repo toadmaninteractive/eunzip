@@ -49,23 +49,3 @@
     file_name :: binary(),
     is_regular_file :: boolean()
 }).
-
-% Unzip state holds file descriptor, size and central directory
--record(unzip_state, {
-    zip_handle :: file:fd(),
-    central_dir :: maps:map(),
-    file_size :: non_neg_integer()
-}).
-
-% Stream state contains information for decompressed file stream
--record(stream_state, {
-    filename :: binary(),
-    zip_handle :: file:fd(),
-    offset :: non_neg_integer(),
-    end_offset :: non_neg_integer(),
-    compression_method :: ?M_STORE | ?M_DEFLATE | non_neg_integer(),
-    z_stream :: zlib:zstream() | undefined,
-    crc :: non_neg_integer(),
-    acc_crc :: non_neg_integer() | 'undefined',
-    chunks_read = 0 :: non_neg_integer()
-}).
