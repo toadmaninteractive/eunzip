@@ -16,77 +16,77 @@
 %% API
 open_close_test() ->
     OpenResult = eunzip:open(otp_23_readme_zip()),
-    ?assertMatch({ok, _}, OpenResult, "Failed to open a ZIP archive"),
+    ?assertMatch({ok, _}, OpenResult),
     {ok, UnzipState} = OpenResult,
-    ?assertEqual(ok, eunzip:close(UnzipState), "Failed to close file").
+    ?assertEqual(ok, eunzip:close(UnzipState)).
 
 entries_test() ->
     OpenResult = eunzip:open(otp_23_readme_zip()),
-    ?assertMatch({ok, _}, OpenResult, "Failed to open a ZIP archive"),
+    ?assertMatch({ok, _}, OpenResult),
     {ok, UnzipState} = OpenResult,
     CdFileName = otp_23_readme_filename(),
-    ?assertMatch({ok, [#cd_entry{file_name = CdFileName}]}, eunzip:entries(UnzipState), "Failed to get entries"),
-    ?assertEqual(ok, eunzip:close(UnzipState), "Failed to close file").
+    ?assertMatch({ok, [#cd_entry{file_name = CdFileName}]}, eunzip:entries(UnzipState)),
+    ?assertEqual(ok, eunzip:close(UnzipState)).
 
 entries2_test() ->
     OpenResult = eunzip:open(specs_zip()),
-    ?assertMatch({ok, _}, OpenResult, "Failed to open a ZIP archive"),
+    ?assertMatch({ok, _}, OpenResult),
     {ok, UnzipState} = OpenResult,
-    ?assertMatch({ok, [_, _, _]}, eunzip:entries(UnzipState), "Failed to get entries"),
-    ?assertEqual(ok, eunzip:close(UnzipState), "Failed to close file").
+    ?assertMatch({ok, [_, _, _]}, eunzip:entries(UnzipState)),
+    ?assertEqual(ok, eunzip:close(UnzipState)).
 
 entry_test() ->
     OpenResult = eunzip:open(otp_23_readme_zip()),
-    ?assertMatch({ok, _}, OpenResult, "Failed to open a ZIP archive"),
+    ?assertMatch({ok, _}, OpenResult),
     {ok, UnzipState} = OpenResult,
     CdFileName = otp_23_readme_filename(),
-    ?assertMatch({ok, #cd_entry{file_name = CdFileName}}, eunzip:entry(UnzipState, CdFileName), "Failed to get file entry"),
-    ?assertEqual(ok, eunzip:close(UnzipState), "Failed to close file").
+    ?assertMatch({ok, #cd_entry{file_name = CdFileName}}, eunzip:entry(UnzipState, CdFileName)),
+    ?assertEqual(ok, eunzip:close(UnzipState)).
 
 is_file_test() ->
     OpenResult = eunzip:open(otp_23_readme_zip()),
-    ?assertMatch({ok, _}, OpenResult, "Failed to open a ZIP archive"),
+    ?assertMatch({ok, _}, OpenResult),
     {ok, UnzipState} = OpenResult,
-    ?assertEqual({ok, true}, eunzip:is_file(UnzipState, otp_23_readme_filename()), "Failed to check if entry is a regular file"),
-    ?assertEqual(ok, eunzip:close(UnzipState), "Failed to close file").
+    ?assertEqual({ok, true}, eunzip:is_file(UnzipState, otp_23_readme_filename())),
+    ?assertEqual(ok, eunzip:close(UnzipState)).
 
 is_dir_test() ->
     OpenResult = eunzip:open(specs_zip()),
-    ?assertMatch({ok, _}, OpenResult, "Failed to open a ZIP archive"),
+    ?assertMatch({ok, _}, OpenResult),
     {ok, UnzipState} = OpenResult,
-    ?assertEqual({ok, true}, eunzip:is_dir(UnzipState, specs_dir()), "Failed to check if entry is a directory"),
-    ?assertEqual(ok, eunzip:close(UnzipState), "Failed to close file").
+    ?assertEqual({ok, true}, eunzip:is_dir(UnzipState, specs_dir())),
+    ?assertEqual(ok, eunzip:close(UnzipState)).
 
 verify_test() ->
     OpenResult = eunzip:open(otp_23_readme_zip()),
-    ?assertMatch({ok, _}, OpenResult, "Failed to open a ZIP archive"),
+    ?assertMatch({ok, _}, OpenResult),
     {ok, UnzipState} = OpenResult,
-    ?assertEqual(ok, eunzip:verify(UnzipState, otp_23_readme_filename()), "CRC32 mismatch"),
-    ?assertEqual(ok, eunzip:close(UnzipState), "Failed to close file").
+    ?assertEqual(ok, eunzip:verify(UnzipState, otp_23_readme_filename())),
+    ?assertEqual(ok, eunzip:close(UnzipState)).
 
-deflate_test() ->
+decompress_test() ->
     OpenResult = eunzip:open(otp_23_readme_zip()),
-    ?assertMatch({ok, _}, OpenResult, "Failed to open a ZIP archive"),
+    ?assertMatch({ok, _}, OpenResult),
     {ok, UnzipState} = OpenResult,
     CdFileName = otp_23_readme_filename(),
-    ?assertEqual(ok, eunzip:decompress(UnzipState, CdFileName, CdFileName), "Failed to decompress file"),
+    ?assertEqual(ok, eunzip:decompress(UnzipState, CdFileName, CdFileName)),
     file:delete(otp_23_readme_filename()),
-    ?assertEqual(ok, eunzip:close(UnzipState), "Failed to close file").
+    ?assertEqual(ok, eunzip:close(UnzipState)).
 
 stream_test() ->
     OpenResult = eunzip:open(otp_23_readme_zip()),
-    ?assertMatch({ok, _}, OpenResult, "Failed to open a ZIP archive"),
+    ?assertMatch({ok, _}, OpenResult),
     {ok, UnzipState} = OpenResult,
     CdFileName = otp_23_readme_filename(),
     StreamInitResult = eunzip:stream_init(UnzipState, CdFileName),
-    ?assertMatch({ok, _}, StreamInitResult, "Failed to start file stream"),
+    ?assertMatch({ok, _}, StreamInitResult),
     {ok, StreamState} = StreamInitResult,
     ExpectedMd5 = <<224, 197, 17, 243, 183, 239, 151, 148, 52, 62, 2, 208, 63, 223, 55, 59>>,
     Md5State = crypto:hash_init(md5),
     StreamResult = stream_iterator(StreamState, Md5State),
-    ?assertMatch({ok, _}, StreamResult, "Failed to stream file contents"),
-    ?assertMatch({ok, ExpectedMd5}, StreamResult, "Imvalid MD5 checksum"),
-    ?assertEqual(ok, eunzip:close(UnzipState), "Failed to close file").
+    ?assertMatch({ok, _}, StreamResult),
+    ?assertMatch({ok, ExpectedMd5}, StreamResult),
+    ?assertEqual(ok, eunzip:close(UnzipState)).
 
 %% Internal functions
 test_path(FileName) ->
