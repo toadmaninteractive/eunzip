@@ -69,7 +69,7 @@ stream_test() ->
     {ok, StreamState} = StreamInitResult,
     ExpectedMd5 = <<224, 197, 17, 243, 183, 239, 151, 148, 52, 62, 2, 208, 63, 223, 55, 59>>,
     Md5State = crypto:hash_init(md5),
-    StreamResult = stream_iterator(StreamState, Md5State),
+    StreamResult = stream_fun(StreamState, Md5State),
     ?assertMatch({ok, _}, StreamResult),
     ?assertMatch({ok, ExpectedMd5}, StreamResult),
     ?assertEqual(ok, eunzip:close(UnzipState)).
@@ -89,13 +89,13 @@ otp_23_readme_filename() ->
 specs_zip() ->
     test_path("specs.zip").
 
-stream_iterator(StreamState, Md5State) ->
+stream_fun(StreamState, Md5State) ->
     case eunzip:stream_read_chunk(?file_chunk_size, StreamState) of
         {ok, Data} ->
             Md5State1 = crypto:hash_update(Md5State, Data),
             {ok, crypto:hash_final(Md5State1)};
         {more, Data, StreamState1} ->
-            stream_iterator(StreamState1, crypto:hash_update(Md5State, Data));
-        {error, Reason, StreamState} ->
+            stream_fun(StreamState1, crypto:hash_update(Md5State, Data));
+        {error, Reason} ->
             {error, Reason}
     end.
