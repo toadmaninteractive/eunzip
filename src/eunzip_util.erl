@@ -61,7 +61,7 @@ zlib_end(Z) ->
 -spec zlib_collect(Z, CompressedData) -> Result when
     Z :: zlib:zstream(),
     CompressedData :: binary(),
-    Result :: 'ok' | {'error', 'zlib_end_failed'}.
+    Result :: binary().
 
 zlib_collect(Z, CompressedData) ->
     zlib_collect(Z, <<>>, zlib:inflateChunk(Z, CompressedData)).

@@ -1,7 +1,6 @@
-% Zip archive read chunk size
+% Chunk sizes
 -define(zip_chunk_size, 65000).
 -define(file_chunk_size, 1024 * 1024).          % 1 MB
--define(z_buffer_size, 5 * 1024 * 1024).        % 5 MB
 
 % Compression methods
 -define(M_STORE, 0).
@@ -16,10 +15,10 @@
 -define(zip64_eocd_size, 56).
 -define(zip64_extra_field_id, 16#0001).
 
-% Local header
+% Local header specific
 -define(local_header_size, 30).
 
-% Auxiliary structure to seek and read data from Zip archives
+% Internal structure containing information to seek and read data from files
 -record(file_buffer, {
     file :: file:fd(),
     size :: non_neg_integer(),
@@ -37,7 +36,7 @@
     cd_offset :: non_neg_integer()
 }).
 
-% File / directory entry within central directory
+% File / directory entry within a central directory
 -record(cd_entry, {
     bit_flag :: non_neg_integer(),
     compression_method :: non_neg_integer(),
@@ -47,18 +46,18 @@
     uncompressed_size :: non_neg_integer(),
     local_header_offset :: non_neg_integer(),
     % TODO: we should treat binary as "IBM Code Page 437" encoded string if GP flag 11 is not set
-    file_name :: file:filename_all(),
+    file_name :: binary(),
     is_regular_file :: boolean()
 }).
 
-% Unzip state holds file descriptor and central directory
+% Unzip state holds file descriptor, size and central directory
 -record(unzip_state, {
     zip_handle :: file:fd(),
     central_dir :: maps:map(),
     file_size :: non_neg_integer()
 }).
 
-% Stream state
+% Stream state contains information for decompressed file stream
 -record(stream_state, {
     filename :: binary(),
     zip_handle :: file:fd(),
@@ -68,7 +67,5 @@
     z_stream :: zlib:zstream() | undefined,
     crc :: non_neg_integer(),
     acc_crc :: non_neg_integer() | 'undefined',
-    stream_fun :: function() | 'undefined',
-    stream_acc :: any(),
     chunks_read = 0 :: non_neg_integer()
 }).

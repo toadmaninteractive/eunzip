@@ -45,7 +45,7 @@
 
 %% API
 
-%% Open Zip file
+%% Open a Zip file
 -spec open(FileName :: file:filename_all()) ->
     {'ok', unzip_state()} | {'error', Reason :: atom()}.
 
@@ -70,14 +70,14 @@ open(FileName) ->
             {error, Reason}
     end.
 
-% Close Zip file
--spec close(State :: unzip_state()) ->
+% Close a Zip file
+-spec close(UnzipState :: unzip_state()) ->
     'ok' | {'error', Reason :: atom()}.
 
 close(#unzip_state{zip_handle = ZipHandle}) ->
     file:close(ZipHandle).
 
-% Get all file and directory entries from Zip archive
+% Get all file and directory entries from a Zip archive
 -spec entries(UnzipState) -> Result when
     UnzipState :: unzip_state(),
     Result :: {'ok', Entries :: [cd_entry()]} | {'error', Reason :: atom()}.
@@ -88,7 +88,7 @@ entries(#unzip_state{central_dir = CentralDir}) ->
 entries(_) ->
     {error, invalid_unzip_state}.
 
-% Get file or directory entry from Zip archive
+% Get file or directory entry from a Zip archive
 -spec entry(UnzipState, CdFileName) -> Result when
     UnzipState :: unzip_state(),
     CdFileName :: file:filename_all(),
@@ -106,7 +106,7 @@ entry(#unzip_state{central_dir = CentralDir}, CdFileName) ->
 entry(_, _) ->
     {error, invalid_unzip_state}.
 
-% Check is supplied file name is a regular file
+% Check if supplied filename corresponds to a regular file
 -spec is_file(UnzipState, CdFileName) -> Result when
     UnzipState :: unzip_state(),
     CdFileName :: file:filename_all(),
@@ -124,7 +124,7 @@ is_file(#unzip_state{central_dir = CentralDir}, CdFileName) ->
 is_file(_, _) ->
     {error, invalid_unzip_state}.
 
-% Check is supplied file name is a directory
+% Check if supplied filename corresponds to a directory
 -spec is_dir(UnzipState, CdFileName) -> Result when
     UnzipState :: unzip_state(),
     CdFileName :: file:filename_all(),
@@ -142,7 +142,7 @@ is_dir(#unzip_state{central_dir = CentralDir}, CdFileName) ->
 is_dir(_, _) ->
     {error, invalid_unzip_state}.
 
-% Verify archived file checksum
+% Verify an archived file checksum
 -spec verify(UnzipState, CdFileName) -> Result when
     UnzipState :: unzip_state(),
     CdFileName :: file:filename_all(),
@@ -172,7 +172,7 @@ verify(#unzip_state{central_dir = CentralDir} = UnzipState, CdFileName) ->
 verify(_, _) ->
     {error, invalid_unzip_state}.
 
-% Decompress archived file into given path
+% Decompress an archived file into a given path
 -spec decompress(UnzipState, CdFileName, TargetFileName) -> Result when
     UnzipState :: unzip_state(),
     CdFileName :: file:filename_all(),
@@ -223,7 +223,7 @@ decompress(#unzip_state{central_dir = CentralDir} = UnzipState, CdFileName, Targ
 decompress(_, _, _) ->
     {error, invalid_unzip_state}.
 
-% Initialize archived file stream, call stream_read_chunk/1 to get actual decompressed data chunks
+% Initialize an archived file stream. Call stream_read_chunk/1 to get actual decompressed data chunks
 -spec stream_init(UnzipState, CdFileName) -> Result when
     UnzipState :: unzip_state(),
     CdFileName :: file:filename_all(),
@@ -267,7 +267,7 @@ stream_init(#unzip_state{zip_handle = ZipHandle, central_dir = CentralDir}, CdFi
 stream_init(_, _) ->
     {error, invalid_unzip_state}.
 
-% Reads chun of compressed file data and decompress it
+% Read a chunk of a compressed file data and decompress it
 stream_read_chunk(_, #stream_state{chunks_read = 0, offset = Offset, end_offset = EndOffset} = State) when Offset >= EndOffset ->
     {ok, <<>>, State#stream_state{chunks_read = 1}};
 
@@ -306,7 +306,7 @@ stream_read_chunk(ChunkSize, #stream_state{offset = Offset, end_offset = EndOffs
 stream_read_chunk(_, _) ->
     {error, invalid_stream_state}.
 
-% Finalizes streaming of an archived file. Performs internal structure cleanup
+% Finalize streaming of an archived file. Performs internal structure cleanup
 stream_end(#stream_state{z_stream = undefined}) ->
     ok;
 

@@ -61,7 +61,14 @@ new(_FileHandle, _FileSize, _BufferSize, _Limit, _Position, _Direction) ->
     Size :: non_neg_integer(),
     Result :: {'ok', binary(), eunzip:file_buffer()} | {'error', Reason :: atom()}.
 
-next_chunk(#file_buffer{direction = forward, file = File, buffer = Buffer, buffer_size = BufferSize, buffer_position = Pos, limit = Limit} = FileBuffer, Size) ->
+next_chunk(#file_buffer{
+    direction = forward,
+    file = File,
+    buffer = Buffer,
+    buffer_size = BufferSize,
+    buffer_position = Pos,
+    limit = Limit
+} = FileBuffer, Size) ->
     BufferEndPos = Pos + byte_size(Buffer),
     EndPos = min(Pos + Size, Limit),
     if
@@ -90,7 +97,8 @@ next_chunk(#file_buffer{file = File, buffer = Buffer, buffer_size = BufferSize, 
                 {ok, Binary} ->
                     Offset = StartPos - NewBufferPos,
                     Buffer1 = <<Buffer/binary, Binary/binary>>,
-                    {ok, binary_part(Buffer1, Offset, min(Size, byte_size(Buffer1))), FileBuffer#file_buffer{buffer = Buffer1, buffer_position = NewBufferPos}};
+                    FilrBuffer1 = FileBuffer#file_buffer{buffer = Buffer1, buffer_position = NewBufferPos},
+                    {ok, binary_part(Buffer1, Offset, min(Size, byte_size(Buffer1))), FilrBuffer1};
                 {error, Reason} ->
                     {error, Reason}
             end;
@@ -105,7 +113,7 @@ next_chunk(#file_buffer{file = File, buffer = Buffer, buffer_size = BufferSize, 
     Result :: {'ok', unzip:file_buffer()} | {'error', Reason :: atom()}.
 
 move_backward_by(#file_buffer{buffer = Buffer}, Count) when byte_size(Buffer) < Count ->
-    {error, invalid_count};
+    {error, invalid_offset};
 
 move_backward_by(#file_buffer{buffer = Buffer} = FileBuffer, Count) ->
     Buffer1 = binary_part(Buffer, 0, byte_size(Buffer) - Count),
@@ -117,7 +125,7 @@ move_backward_by(#file_buffer{buffer = Buffer} = FileBuffer, Count) ->
     Result :: {'ok', unzip:file_buffer()} | {'error', Reason :: atom()}.
 
 move_forward_by(#file_buffer{buffer = Buffer}, Count) when byte_size(Buffer) < Count ->
-    {error, invalid_count};
+    {error, invalid_offset};
 
 move_forward_by(#file_buffer{buffer = Buffer, buffer_position = Pos, limit = Limit} = FileBuffer, Count) ->
     Buffer1 = binary_part(Buffer, Count, byte_size(Buffer) - Count),
