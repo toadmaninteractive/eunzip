@@ -13,35 +13,41 @@
 -export([
     open/1,
     close/1,
+    entries/1,
+    entry/2,
+    is_file/2,
+    is_dir/2,
     verify/2,
     decompress/3,
-    stream/4
+    stream_init/2,
+    stream_read_chunk/2,
+    stream_end/1
 ]).
 
-% Stream state
--record(stream_state, {
-    zip_handle :: file:fd(),
-    offset :: non_neg_integer(),
-    end_offset :: non_neg_integer(),
-    compression_method :: ?M_STORE | ?M_DEFLATE | non_neg_integer(),
-    z_stream :: zlib:zstream() | undefined,
-    crc :: non_neg_integer(),
-    acc_crc :: non_neg_integer() | 'undefined',
-    stream_fun :: function() | 'undefined',
-    stream_acc :: any()
-}).
+% Types
+-opaque unzip_state() :: #unzip_state{}.
+-export_type([unzip_state/0]).
 
-% Decompress state
--record(decompress_state, {
-    file_name :: file:filename_all(),
-    fd :: file:fd()
-}).
+-opaque cd_info() :: #cd_info{}.
+-export_type([cd_info/0]).
+
+-type cd_entry() :: #cd_entry{}.
+-export_type([cd_entry/0]).
+
+-opaque file_buffer() :: #file_buffer{}.
+-export_type([file_buffer/0]).
+
+-opaque direction() :: 'backward' | 'forward'.
+-export_type([direction/0]).
+
+-opaque stream_state() :: #stream_state{}.
+-export_type([stream_state/0]).
 
 %% API
 
 %% Open Zip file
 -spec open(FileName :: file:filename_all()) ->
-    {'ok', eunzip_types:unzip_state()} | {'error', Reason :: atom()}.
+    {'ok', unzip_state()} | {'error', Reason :: atom()}.
 
 open(FileName) ->
     FileSize = filelib:file_size(FileName),
@@ -65,193 +71,274 @@ open(FileName) ->
     end.
 
 % Close Zip file
--spec close(State :: eunzip_types:unzip_state()) ->
+-spec close(State :: unzip_state()) ->
     'ok' | {'error', Reason :: atom()}.
 
 close(#unzip_state{zip_handle = ZipHandle}) ->
     file:close(ZipHandle).
 
--spec verify(UnzipState, FileName) -> Result when
-    UnzipState :: eunzip_types:unzip_state(),
-    FileName :: binary(),
+% Get all file and directory entries from Zip archive
+-spec entries(UnzipState) -> Result when
+    UnzipState :: unzip_state(),
+    Result :: {'ok', Entries :: [cd_entry()]} | {'error', Reason :: atom()}.
+
+entries(#unzip_state{central_dir = CentralDir}) ->
+    {ok, maps:values(CentralDir)};
+
+entries(_) ->
+    {error, invalid_unzip_state}.
+
+% Get file or directory entry from Zip archive
+-spec entry(UnzipState, CdFileName) -> Result when
+    UnzipState :: unzip_state(),
+    CdFileName :: file:filename_all(),
+    Result :: {'ok', cd_entry()} | {'error', Reason :: atom()}.
+
+entry(UnzipState, CdFileName) when is_list(CdFileName) ->
+    entry(UnzipState, iolist_to_binary(CdFileName));
+
+entry(#unzip_state{central_dir = CentralDir}, CdFileName) ->
+    case maps:get(CdFileName, CentralDir, undefined) of
+        undefined -> {error, not_exists};
+        #cd_entry{} = Entry -> {ok, Entry}
+    end;
+
+entry(_, _) ->
+    {error, invalid_unzip_state}.
+
+% Check is supplied file name is a regular file
+-spec is_file(UnzipState, CdFileName) -> Result when
+    UnzipState :: unzip_state(),
+    CdFileName :: file:filename_all(),
+    Result :: {'ok', boolean()} | {'error', Reason :: atom()}.
+
+is_file(UnzipState, CdFileName) when is_list(CdFileName) ->
+    is_file(UnzipState, iolist_to_binary(CdFileName));
+
+is_file(#unzip_state{central_dir = CentralDir}, CdFileName) ->
+    case maps:get(CdFileName, CentralDir, undefined) of
+        undefined -> {error, not_exists};
+        #cd_entry{is_regular_file = IsRegularFile} -> {ok, IsRegularFile}
+    end;
+
+is_file(_, _) ->
+    {error, invalid_unzip_state}.
+
+% Check is supplied file name is a directory
+-spec is_dir(UnzipState, CdFileName) -> Result when
+    UnzipState :: unzip_state(),
+    CdFileName :: file:filename_all(),
+    Result :: {'ok', boolean()} | {'error', Reason :: atom()}.
+
+is_dir(UnzipState, CdFileName) when is_list(CdFileName) ->
+    is_dir(UnzipState, iolist_to_binary(CdFileName));
+
+is_dir(#unzip_state{central_dir = CentralDir}, CdFileName) ->
+    case maps:get(CdFileName, CentralDir, undefined) of
+        undefined -> {error, not_exists};
+        #cd_entry{is_regular_file = IsRegularFile} -> {ok, not IsRegularFile}
+    end;
+
+is_dir(_, _) ->
+    {error, invalid_unzip_state}.
+
+% Verify archived file checksum
+-spec verify(UnzipState, CdFileName) -> Result when
+    UnzipState :: unzip_state(),
+    CdFileName :: file:filename_all(),
     Result :: 'ok' | {'error', Reason :: atom()}.
 
-verify(#unzip_state{zip_handle = ZipHandle, central_dir = CentralDir}, FileName) ->
-    case maps:get(FileName, CentralDir, undefined) of
-        #cd_entry{compression_method = Method, compressed_size = CompressedSize, local_header_offset = LocalHeaderOffset, crc = Crc} ->
-            StartOffset = file_start_offset(ZipHandle, LocalHeaderOffset),
-            case stream_file(ZipHandle, Method, StartOffset, CompressedSize, Crc, undefined, undefined) of
-                {ok, _} -> ok;
-                {error, Reason, _} -> {error, Reason}
+verify(UnzipState, CdFileName) when is_list(CdFileName) ->
+    verify(UnzipState, iolist_to_binary(CdFileName));
+
+verify(#unzip_state{central_dir = CentralDir} = UnzipState, CdFileName) ->
+    case maps:get(CdFileName, CentralDir, undefined) of
+        #cd_entry{is_regular_file = false} ->
+            {error, is_dir};
+
+        #cd_entry{compression_method = Method} when not (Method =:= ?M_STORE orelse Method =:= ?M_DEFLATE) ->
+            {error, compression_method_not_supported};
+
+        #cd_entry{} ->
+            case stream_init(UnzipState, CdFileName) of
+                {ok, StreamState} -> verify_stream(StreamState);
+                {error, Reason} -> {error, Reason}
             end;
+
         undefined ->
             {error, file_not_found}
-    end.
+    end;
 
+verify(_, _) ->
+    {error, invalid_unzip_state}.
+
+% Decompress archived file into given path
 -spec decompress(UnzipState, CdFileName, TargetFileName) -> Result when
-    UnzipState :: eunzip_types:unzip_state(),
-    CdFileName :: binary(),
-    TargetFileName :: binary(),
+    UnzipState :: unzip_state(),
+    CdFileName :: file:filename_all(),
+    TargetFileName :: file:filename_all(),
     Result :: 'ok' | {'error', Reason :: atom()}.
 
-decompress(#unzip_state{zip_handle = ZipHandle, central_dir = CentralDir}, CdFileName, TargetFileName) ->
-    case maps:get(CdFileName, CentralDir, undefined) of
-        #cd_entry{compression_method = Method, compressed_size = CompressedSize, local_header_offset = LocalHeaderOffset, crc = Crc} ->
-            FileExists = filelib:is_file(TargetFileName) orelse filelib:is_dir(TargetFileName),
-            case FileExists of
-                true -> {error, target_file_exists};
-                false ->
-                    StartOffset = file_start_offset(ZipHandle, LocalHeaderOffset),
-                    case stream_file(ZipHandle, Method, StartOffset, CompressedSize, Crc, fun decompress_stream/2, #decompress_state{file_name = TargetFileName}) of
-                        {ok, _} -> ok;
-                        {error, Reason, _} -> {error, Reason}
-                    end
-                end;
-        undefined ->
-            {error, file_not_found}
-    end.
+decompress(UnzipState, CdFileName, TargetFileName) when is_list(CdFileName) ->
+    decompress(UnzipState, iolist_to_binary(CdFileName), TargetFileName);
 
--spec stream(UnzipState, CdFileName, StreamFun, StreamAcc) -> Result when
-    UnzipState :: eunzip_types:unzip_state(),
-    CdFileName :: binary(),
-    StreamFun :: fun((StreamFunArg, T) -> T),
-    StreamFunArg :: 'bof' | {'data', binary()} | 'eof' | {'error', atom()},
-    StreamAcc :: any(),
-    Result :: {'ok', T :: any()} | {'error', Reason :: atom()}.
+decompress(UnzipState, CdFileName, TargetFileName) when is_list(TargetFileName) ->
+    decompress(UnzipState, CdFileName, iolist_to_binary(TargetFileName));
 
-stream(#unzip_state{zip_handle = ZipHandle, central_dir = CentralDir}, CdFileName, StreamFun, StreamAcc) ->
+decompress(#unzip_state{central_dir = CentralDir} = UnzipState, CdFileName, TargetFileName) ->
     case maps:get(CdFileName, CentralDir, undefined) of
-        #cd_entry{compression_method = Method, compressed_size = CompressedSize, local_header_offset = LocalHeaderOffset, crc = Crc} ->
-            StartOffset = file_start_offset(ZipHandle, LocalHeaderOffset),
-            case stream_file(ZipHandle, Method, StartOffset, CompressedSize, Crc, StreamFun, StreamAcc) of
-                {ok, StreamAcc1} -> {ok, StreamAcc1};
-                {error, Reason, _} -> {error, Reason}
+        #cd_entry{is_regular_file = false} ->
+            {error, is_dir};
+
+        #cd_entry{compression_method = Method} when not (Method =:= ?M_STORE orelse Method =:= ?M_DEFLATE) ->
+            {error, compression_method_not_supported};
+
+        #cd_entry{} ->
+            case filelib:ensure_dir(TargetFileName) of
+                ok ->
+                    case file:open(TargetFileName, [write, binary, raw]) of
+                        {ok, Fd} ->
+                            case stream_init(UnzipState, CdFileName) of
+                                {ok, StreamState} ->
+                                    case decompress_stream(StreamState, Fd) of
+                                        ok ->
+                                            file:close(Fd);
+                                        {error, _Reason} = Error ->
+                                            file:close(Fd),
+                                            file:delete(TargetFileName),
+                                            Error
+                                    end;
+                                {error, Reason} ->
+                                    {error, Reason}
+                            end;
+                        {error, Reason} ->
+                            {error, Reason}
+                    end;
+                {error, Reason} ->
+                    {error, Reason}
             end;
+
         undefined ->
             {error, file_not_found}
-    end.
+    end;
 
-%% Internal functions
-safe_call(Fun, Args, Default) ->
-    ArgCount = length(Args),
-    case is_function(Fun, ArgCount) of
-        true -> erlang:apply(Fun, Args);
-        false -> Default
-    end.
+decompress(_, _, _) ->
+    {error, invalid_unzip_state}.
 
-file_start_offset(ZipHandle, LocalHeaderOffset) ->
-    case file:pread(ZipHandle, LocalHeaderOffset, ?local_header_size) of
-        {ok, LocalHeader} ->
-            <<
-                16#04034b50:32/little,
-                _:32/little,
-                _CompressionMethod:16/little,
-                _:128/little,
-                FileNameLength:16/little,
-                ExtraFieldLength:16/little
-            >> = LocalHeader,
-            LocalHeaderOffset + ?local_header_size + FileNameLength + ExtraFieldLength;
-        {error, Reason} ->
-            {error, Reason}
-    end.
+% Initialize archived file stream, call stream_read_chunk/1 to get actual decompressed data chunks
+-spec stream_init(UnzipState, CdFileName) -> Result when
+    UnzipState :: unzip_state(),
+    CdFileName :: file:filename_all(),
+    Result :: {'ok', stream_state()} | {'error', Reason :: atom()}.
 
-stream_file(ZipHandle, CompressionMethod, Offset, Size, Crc, StreamFun, StreamAcc) ->
-    State = #stream_state{
+stream_init(UnzipState, CdFileName) when is_list(CdFileName) ->
+    stream_init(UnzipState, iolist_to_binary(CdFileName));
+
+stream_init(#unzip_state{zip_handle = ZipHandle, central_dir = CentralDir}, CdFileName) ->
+    case maps:get(CdFileName, CentralDir, undefined) of
+        #cd_entry{is_regular_file = false} ->
+            {error, is_dir};
+
+        #cd_entry{compression_method = Method} when not (Method =:= ?M_STORE orelse Method =:= ?M_DEFLATE) ->
+            {error, compression_method_not_supported};
+
+        #cd_entry{compression_method = Method, compressed_size = CompressedSize, local_header_offset = LocalHeaderOffset, crc = Crc} ->
+            case eunzip_util:file_start_offset(ZipHandle, LocalHeaderOffset) of
+                {ok, StartOffset} ->
+                    StreamState = #stream_state{
+                        filename = CdFileName,
+                        zip_handle = ZipHandle,
+                        offset = StartOffset,
+                        end_offset = StartOffset + CompressedSize,
+                        compression_method = Method,
+                        crc = Crc,
+                        acc_crc = erlang:crc32(<<>>)
+                    },
+                    case eunzip_util:zlib_init(Method) of
+                        {ok, ZStream} -> {ok, StreamState#stream_state{z_stream = ZStream}};
+                        {error, Reason} -> {error, Reason}
+                    end;
+                {error, Reason} ->
+                    {error, Reason}
+            end;
+
+        undefined ->
+            {error, file_not_found}
+    end;
+
+stream_init(_, _) ->
+    {error, invalid_unzip_state}.
+
+% Reads chun of compressed file data and decompress it
+stream_read_chunk(_, #stream_state{chunks_read = 0, offset = Offset, end_offset = EndOffset} = State) when Offset >= EndOffset ->
+    {ok, <<>>, State#stream_state{chunks_read = 1}};
+
+stream_read_chunk(_, #stream_state{offset = Offset, end_offset = EndOffset} = State) when Offset >= EndOffset ->
+    {eof, State};
+
+stream_read_chunk(ChunkSize, #stream_state{offset = Offset, end_offset = EndOffset} = State) ->
+    #stream_state{
         zip_handle = ZipHandle,
-        offset = Offset,
-        end_offset = Offset + Size,
-        compression_method = CompressionMethod,
+        compression_method = Method,
+        z_stream = Z,
         crc = Crc,
-        acc_crc = erlang:crc32(<<>>)
-    },
-    ZStream = case CompressionMethod of
-        ?M_STORE -> undefined;
-        ?M_DEFLATE ->
-            Z = zlib:open(),
-            ok = zlib:inflateInit(Z, -15),
-            ok = zlib:setBufSize(Z, ?z_buffer_size),
-            Z
-    end,
-    StreamAcc1 = safe_call(StreamFun, [bof, StreamAcc], StreamAcc),
-    Result = case stream_file_fun(State#stream_state{z_stream = ZStream, stream_fun = StreamFun, stream_acc = StreamAcc1}) of
-        {ok, StreamAcc2} -> {ok, StreamAcc2};
-        {error, Reason, _StreamAcc2} -> {error, Reason}
-    end,
-    case CompressionMethod of
-        ?M_STORE -> undefined;
-        ?M_DEFLATE ->
-            ok = zlib:inflateEnd(ZStream),
-            zlib:close(ZStream)
-    end,
-    Result.
-
-stream_file_fun(#stream_state{
-    offset = Offset,
-    end_offset = EndOffset,
-    crc = Crc,
-    acc_crc = Crc,
-    stream_fun = StreamFun,
-    stream_acc = StreamAcc
-}) when Offset >= EndOffset ->
-    StreamAcc1 = safe_call(StreamFun, [eof, StreamAcc], StreamAcc),
-    {ok, StreamAcc1};
-
-stream_file_fun(#stream_state{
-    offset = Offset,
-    end_offset = EndOffset,
-    stream_fun = StreamFun,
-    stream_acc = StreamAcc
-}) when Offset >= EndOffset ->
-    Reason = crc32_mismatch,
-    StreamAcc1 = safe_call(StreamFun, [{error, Reason}, StreamAcc], StreamAcc),
-    {error, Reason, StreamAcc1};
-
-stream_file_fun(#stream_state{
-    zip_handle = ZipHandle,
-    compression_method = Method,
-    z_stream = Z,
-    offset = Offset,
-    end_offset = EndOffset,
-    acc_crc = AccCrc,
-    stream_fun = StreamFun,
-    stream_acc = StreamAcc
-} = State) ->
-    NextOffset = min(Offset + ?file_chunk_size, EndOffset),
+        acc_crc = AccCrc,
+        chunks_read = ChunksRead
+    } = State,
+    NextOffset = min(Offset + ChunkSize, EndOffset),
     case file:pread(ZipHandle, Offset, NextOffset - Offset) of
         {ok, RawData} ->
             DecompressedData = case Method of
                 ?M_STORE -> RawData;
-                ?M_DEFLATE -> collect(Z, RawData)
+                ?M_DEFLATE -> eunzip_util:zlib_collect(Z, RawData)
             end,
             AccCrc1 = erlang:crc32(AccCrc, DecompressedData),
-            StreamAcc1 = safe_call(StreamFun, [{data, DecompressedData}, StreamAcc], StreamAcc),
-            stream_file_fun(State#stream_state{offset = NextOffset, acc_crc = AccCrc1, stream_acc = StreamAcc1});
+            case NextOffset of
+                EndOffset when AccCrc1 =:= Crc ->
+                    {ok, DecompressedData, #stream_state{offset = NextOffset, acc_crc = AccCrc1, chunks_read = ChunksRead + 1}};
+                EndOffset ->
+                    {error, crc_mismatch};
+                _ ->
+                    {more, DecompressedData, #stream_state{offset = NextOffset, acc_crc = AccCrc1, chunks_read = ChunksRead + 1}}
+            end;
         {error, Reason} ->
-            StreamAcc1 = safe_call(StreamFun, [{error, Reason}, StreamAcc], StreamAcc),
-            {error, Reason, StreamAcc1}
+            {error, Reason}
+    end;
+
+stream_read_chunk(_, _) ->
+    {error, invalid_stream_state}.
+
+% Finalizes streaming of an archived file. Performs internal structure cleanup
+stream_end(#stream_state{z_stream = undefined}) ->
+    ok;
+
+stream_end(#stream_state{z_stream = Z}) ->
+    eunzip_util:zlib_end(Z);
+
+stream_end(_) ->
+    {error, invalid_stream_state}.
+
+%% Internal functions
+verify_stream(StreamState) ->
+    case stream_read_chunk(?file_chunk_size, StreamState) of
+        {ok, _Data, StreamState1} ->
+            stream_end(StreamState1);
+        {more, _Data, StreamState1} ->
+            verify_stream(StreamState1);
+        {error, Reason} ->
+            stream_end(StreamState),
+            {error, Reason}
     end.
 
-collect(Z, CompressedData) ->
-    collect(Z, <<>>, zlib:inflateChunk(Z, CompressedData)).
-
-collect(Z, Acc, {more, Decompressed}) ->
-    collect(Z, <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>, zlib:inflateChunk(Z));
-collect(_Z, Acc, Decompressed) ->
-    <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>.
-
-decompress_stream(bof, #decompress_state{file_name = FileName} = State) ->
-    ok = filelib:ensure_dir(FileName),
-    {ok, FD} = file:open(FileName, [write, binary, raw]),
-    State#decompress_state{fd = FD};
-
-decompress_stream({error, _Reason}, #decompress_state{fd = FD} = State) ->
-    ok = file:close(FD),
-    State#decompress_state{fd = undefined};
-
-decompress_stream({data, Data}, #decompress_state{fd = FD} = State) ->
-    ok = file:write(FD, Data),
-    State;
-
-decompress_stream(eof, #decompress_state{fd = FD} = State) ->
-    ok = file:close(FD),
-    State#decompress_state{fd = undefined}.
+decompress_stream(StreamState, Fd) ->
+    case stream_read_chunk(?file_chunk_size, StreamState) of
+        {ok, Data, StreamState1} ->
+            file:write(Fd, Data),
+            stream_end(StreamState1);
+        {more, Data, StreamState1} ->
+            file:write(Fd, Data),
+            decompress_stream(StreamState1, Fd);
+        {error, Reason} ->
+            stream_end(StreamState),
+            {error, Reason}
+    end.

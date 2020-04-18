@@ -20,7 +20,7 @@
     FileHandle :: file:fd(),
     FileSize :: non_neg_integer(),
     BufferSize :: non_neg_integer(),
-    Result :: {'ok', eunzip_types:file_buffer()} | {'error', Reason :: atom()}.
+    Result :: {'ok', eunzip:file_buffer()} | {'error', Reason :: atom()}.
 
 new(FileHandle, FileSize, BufferSize) ->
     {ok, #file_buffer{
@@ -39,8 +39,8 @@ new(FileHandle, FileSize, BufferSize) ->
     BufferSize :: non_neg_integer(),
     Limit :: non_neg_integer(),
     Position :: non_neg_integer(),
-    Direction :: eunzip_types:direction(),
-    Result :: {'ok', eunzip_types:file_buffer()} | {'error', Reason :: atom()}.
+    Direction :: eunzip:direction(),
+    Result :: {'ok', eunzip:file_buffer()} | {'error', Reason :: atom()}.
 
 new(FileHandle, FileSize, BufferSize, Limit, Position, Direction) when Limit =< FileSize ->
     {ok, #file_buffer{
@@ -57,9 +57,9 @@ new(_FileHandle, _FileSize, _BufferSize, _Limit, _Position, _Direction) ->
     {error, invalid_limit}.
 
 -spec next_chunk(FileBuffer, Size) -> Result when
-    FileBuffer :: eunzip_types:file_buffer(),
+    FileBuffer :: eunzip:file_buffer(),
     Size :: non_neg_integer(),
-    Result :: {'ok', binary(), eunzip_types:file_buffer()} | {'error', Reason :: atom()}.
+    Result :: {'ok', binary(), eunzip:file_buffer()} | {'error', Reason :: atom()}.
 
 next_chunk(#file_buffer{direction = forward, file = File, buffer = Buffer, buffer_size = BufferSize, buffer_position = Pos, limit = Limit} = FileBuffer, Size) ->
     BufferEndPos = Pos + byte_size(Buffer),

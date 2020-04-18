@@ -16,7 +16,7 @@
 -spec eocd(ZipHandle, FileSize) -> Result when
     ZipHandle :: file:fd(),
     FileSize :: non_neg_integer(),
-    Result :: {'ok', Eocd :: eunzip_types:cd_info()} | {'error', Reason :: atom()}.
+    Result :: {'ok', Eocd :: eunzip:cd_info()} | {'error', Reason :: atom()}.
 
 eocd(ZipHandle, FileSize) ->
     case eunzip_buffer:new(ZipHandle, FileSize, ?zip_chunk_size) of
@@ -37,8 +37,8 @@ eocd(ZipHandle, FileSize) ->
 -spec entries(ZipHandle, FileSize, CdInfo) -> Result when
     ZipHandle :: file:fd(),
     FileSize :: non_neg_integer(),
-    CdInfo :: eunzip_types:cd_info(),
-    Result :: {'ok', Eocd :: eunzip_types:cd_info()} | {'error', Reason :: atom()}.
+    CdInfo :: eunzip:cd_info(),
+    Result :: {'ok', Eocd :: eunzip:cd_info()} | {'error', Reason :: atom()}.
 
 entries(ZipHandle, FileSize, #cd_info{cd_offset = CdOffset, cd_size = CdSize}) ->
     case eunzip_buffer:new(ZipHandle, FileSize, ?zip_chunk_size, CdOffset + CdSize, CdOffset, forward) of
@@ -131,7 +131,8 @@ parse_cd(FileBuffer, Acc) ->
                 uncompressed_size = UncompressedSize,
                 local_header_offset = LocalHeaderOffset,
                 % TODO: we should treat binary as "IBM Code Page 437" encoded string if GP flag 11 is not set
-                file_name = FileName
+                file_name = FileName,
+                is_regular_file = not (binary:last(FileName) =:= $/ andalso LocalHeaderOffset =:= 0)
             },
             Entry1 = case need_zip64_extra(Entry) of
                 true -> merge_zip64_extra(Entry, ExtraFields);

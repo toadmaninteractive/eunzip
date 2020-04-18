@@ -27,7 +27,7 @@
     buffer :: binary(),
     buffer_size :: non_neg_integer(),
     buffer_position :: non_neg_integer(),
-    direction :: eunzip_types:direction()
+    direction :: eunzip:direction()
 }).
 
 % Central directory basic information
@@ -46,7 +46,9 @@
     compressed_size :: non_neg_integer(),
     uncompressed_size :: non_neg_integer(),
     local_header_offset :: non_neg_integer(),
-    file_name :: file:filename_all()  % TODO: we should treat binary as "IBM Code Page 437" encoded string if GP flag 11 is not set
+    % TODO: we should treat binary as "IBM Code Page 437" encoded string if GP flag 11 is not set
+    file_name :: file:filename_all(),
+    is_regular_file :: boolean()
 }).
 
 % Unzip state holds file descriptor and central directory
@@ -54,4 +56,19 @@
     zip_handle :: file:fd(),
     central_dir :: maps:map(),
     file_size :: non_neg_integer()
+}).
+
+% Stream state
+-record(stream_state, {
+    filename :: binary(),
+    zip_handle :: file:fd(),
+    offset :: non_neg_integer(),
+    end_offset :: non_neg_integer(),
+    compression_method :: ?M_STORE | ?M_DEFLATE | non_neg_integer(),
+    z_stream :: zlib:zstream() | undefined,
+    crc :: non_neg_integer(),
+    acc_crc :: non_neg_integer() | 'undefined',
+    stream_fun :: function() | 'undefined',
+    stream_acc :: any(),
+    chunks_read = 0 :: non_neg_integer()
 }).
