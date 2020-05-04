@@ -132,7 +132,7 @@ parse_cd(FileBuffer, Acc) ->
                     local_header_offset = LocalHeaderOffset,
                     % TODO: we should treat binary as "IBM Code Page 437" encoded string if GP flag 11 is not set
                     file_name = FileName,
-                    is_regular_file = not (binary:last(FileName) =:= $/ andalso LocalHeaderOffset =:= 0)
+                    is_regular_file = binary:last(FileName) =/= $/
                 },
                 Entry1 = case need_zip64_extra(Entry) of
                     true ->
