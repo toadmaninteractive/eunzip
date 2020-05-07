@@ -38,6 +38,7 @@ zlib_init(?M_DEFLATE) ->
     try
         Z = zlib:open(),
         ok = zlib:inflateInit(Z, -15),
+        ok = zlib:setBufSize(Z, 512 * 1024),
         {ok, Z}
     catch
         _:_ -> {error, zlib_init_failed}
@@ -64,10 +65,10 @@ zlib_end(Z) ->
     Result :: binary().
 
 zlib_collect(Z, CompressedData) ->
-    zlib_collect(Z, <<>>, zlib:safeInflate(Z, CompressedData)).
+    zlib_collect(Z, <<>>, zlib:inflateChunk(Z, CompressedData)).
 
 %% Internal functions
-zlib_collect(Z, Acc, {continue, Decompressed}) ->
-    zlib_collect(Z, <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>, zlib:safeInflate(Z, []));
-zlib_collect(_Z, Acc, {finished, Decompressed}) ->
+zlib_collect(Z, Acc, {more, Decompressed}) ->
+    zlib_collect(Z, <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>, zlib:inflateChunk(Z));
+zlib_collect(_Z, Acc, Decompressed) ->
     <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>.
