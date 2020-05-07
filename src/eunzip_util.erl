@@ -64,10 +64,10 @@ zlib_end(Z) ->
     Result :: binary().
 
 zlib_collect(Z, CompressedData) ->
-    zlib_collect(Z, <<>>, zlib:inflateChunk(Z, CompressedData)).
+    zlib_collect(Z, <<>>, zlib:safeInflate(Z, CompressedData)).
 
 %% Internal functions
-zlib_collect(Z, Acc, {more, Decompressed}) ->
-    zlib_collect(Z, <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>, zlib:inflateChunk(Z));
-zlib_collect(_Z, Acc, Decompressed) ->
+zlib_collect(Z, Acc, {continue, Decompressed}) ->
+    zlib_collect(Z, <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>, zlib:safeInflate(Z, []));
+zlib_collect(_Z, Acc, {finished, Decompressed}) ->
     <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>.
