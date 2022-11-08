@@ -1,7 +1,11 @@
 {application, eunzip, [
     {description, "Erlang unzip module"},
-    {vsn, "1.0"},
+    {vsn, "1.0.0"},
     {modules, []},
     {registered, []},
-    {applications, [kernel, stdlib]}
+    {applications, [kernel, stdlib]},
+    {pkg_name, "eunzip"},
+    {licenses, ["MIT"]},
+    {owner, ["Toadman Interactive"]},
+    {links, [{"Github", "https://github.com/toadmaninteractive/eunzip"}]}
 ]}.
