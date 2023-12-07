@@ -108,9 +108,9 @@ next_chunk(#file_buffer{file = File, buffer = Buffer, buffer_size = BufferSize, 
     end.
 
 -spec move_backward_by(FileBuffer, Count) -> Result when
-    FileBuffer :: unzip:file_buffer(),
+    FileBuffer :: eunzip:file_buffer(),
     Count :: non_neg_integer(),
-    Result :: {'ok', unzip:file_buffer()} | {'error', Reason :: atom()}.
+    Result :: {'ok', eunzip:file_buffer()} | {'error', Reason :: atom()}.
 
 move_backward_by(#file_buffer{buffer = Buffer}, Count) when byte_size(Buffer) < Count ->
     {error, invalid_offset};
@@ -120,9 +120,9 @@ move_backward_by(#file_buffer{buffer = Buffer} = FileBuffer, Count) ->
     {ok, FileBuffer#file_buffer{buffer = Buffer1}}.
 
 -spec move_forward_by(FileBuffer, Count) -> Result when
-    FileBuffer :: unzip:file_buffer(),
+    FileBuffer :: eunzip:file_buffer(),
     Count :: non_neg_integer(),
-    Result :: {'ok', unzip:file_buffer()} | {'error', Reason :: atom()}.
+    Result :: {'ok', eunzip:file_buffer()} | {'error', Reason :: atom()}.
 
 move_forward_by(#file_buffer{buffer = Buffer}, Count) when byte_size(Buffer) < Count ->
     {error, invalid_offset};
