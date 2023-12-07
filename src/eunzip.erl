@@ -25,7 +25,7 @@
 % Unzip state holds file descriptor, size and central directory
 -record(unzip_state, {
     zip_handle :: file:fd(),
-    central_dir :: maps:map(),
+    central_dir :: map(),
     file_size :: non_neg_integer()
 }).
 
