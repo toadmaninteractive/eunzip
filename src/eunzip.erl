@@ -25,7 +25,7 @@
 % Unzip state holds file descriptor, size and central directory
 -record(unzip_state, {
     zip_handle :: file:fd(),
-    central_dir :: map(),
+    central_dir :: #{entries => #{filename:filename_all() => eunzip:cd_entry()}, range_tree => gb_trees:tree()},
     file_size :: non_neg_integer()
 }).
 
@@ -36,7 +36,7 @@
     offset :: non_neg_integer(),
     end_offset :: non_neg_integer(),
     compression_method :: ?M_STORE | ?M_DEFLATE | non_neg_integer(),
-    z_stream :: zlib:zstream() | undefined,
+    z_stream :: zlib:zstream() | 'undefined',
     crc :: non_neg_integer(),
     acc_crc :: non_neg_integer() | 'undefined',
     chunks_read = 0 :: non_neg_integer()

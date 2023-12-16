@@ -19,16 +19,12 @@
     Result :: {'ok', Eocd :: eunzip:cd_info()} | {'error', Reason :: atom()}.
 
 eocd(ZipHandle, FileSize) ->
-    case eunzip_buffer:new(ZipHandle, FileSize, ?zip_chunk_size) of
-        {ok, FileBuffer} ->
-            case find_eocd(FileBuffer, 0) of
-                {ok, Eocd, FileBuffer1} ->
-                    case find_zip64_eocd(FileBuffer1) of
-                        {ok, Zip64Eocd} -> {ok, Zip64Eocd};
-                        _ -> {ok, Eocd}
-                    end;
-                {error, Reason} ->
-                    {error, Reason}
+    {ok, FileBuffer} = eunzip_buffer:new(ZipHandle, FileSize, ?zip_chunk_size),
+    case find_eocd(FileBuffer, 0) of
+        {ok, Eocd, FileBuffer1} ->
+            case find_zip64_eocd(FileBuffer1) of
+                {ok, Zip64Eocd} -> {ok, Zip64Eocd};
+                _ -> {ok, Eocd}
             end;
         {error, Reason} ->
             {error, Reason}
@@ -38,7 +34,8 @@ eocd(ZipHandle, FileSize) ->
     ZipHandle :: file:fd(),
     FileSize :: non_neg_integer(),
     CdInfo :: eunzip:cd_info(),
-    Result :: {'ok', Eocd :: eunzip:cd_info()} | {'error', Reason :: atom()}.
+    Result :: {'ok', Eocd} | {'error', Reason :: atom()},
+    Eocd :: #{entries => #{filename:filename_all() => eunzip:cd_entry()}, range_tree => gb_trees:tree()}.
 
 entries(ZipHandle, FileSize, #cd_info{cd_offset = CdOffset, cd_size = CdSize}) ->
     case eunzip_buffer:new(ZipHandle, FileSize, ?zip_chunk_size, CdOffset + CdSize, CdOffset, forward) of
@@ -150,8 +147,8 @@ parse_cd(FileBuffer, Acc) ->
             case Result of
                 {ok, NewEntry, NewFileBuffer} ->
                     case add_entry(Acc, NewEntry#cd_entry.file_name, NewEntry) of
-                        {error, _} = Error -> Error;
-                        Acc1 -> parse_cd(NewFileBuffer, Acc1)
+                        {error, overlapped_zip_entries} = Error -> Error;
+                        #{} = Acc1 -> parse_cd(NewFileBuffer, Acc1)
                     end;
                 {error, Reason1} ->
                     {error, Reason1}

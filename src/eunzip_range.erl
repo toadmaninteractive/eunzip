@@ -1,5 +1,5 @@
 %% @author: Maxim Pushkar
-%% @date: 06.04.2020
+%% @date: 16.12.2023
 
 -module(eunzip_range).
 
@@ -31,15 +31,12 @@ insert(Tree, Offset, Length) ->
     Length :: non_neg_integer(),
     Result :: boolean().
 
-is_overlap({_, TreeNode} = _Tree, Offset, Length) ->
-    is_pos_overlap(TreeNode, Offset, nil) orelse is_pos_overlap(TreeNode, Offset + Length - 1, nil).
+is_overlap(Tree, Offset, Length) ->
+    Iter = gb_trees:iterator(Tree),
+    iterate(gb_trees:next(Iter), Offset, Offset + Length - 1).
 
 %% Internal functions
-is_pos_overlap(nil, _, nil) ->
-    false;
-is_pos_overlap(nil, Pos, {Offset, Length, _, _}) ->
-    Offset =< Pos andalso Pos < (Offset + Length - 1);
-is_pos_overlap({Offset, _, Smaller, _}, Pos, PrevRange) when Offset > Pos ->
-    is_pos_overlap(Smaller, Pos, PrevRange);
-is_pos_overlap({_, _, _, Bigger} = Range, Pos, _) ->
-    is_pos_overlap(Bigger, Pos, Range).
+iterate(none = _Iter, _From, _To) -> false;
+iterate({Offset, _Length, _Iter}, From, To) when From < Offset, To >= Offset -> true;
+iterate({Offset, Length, _Iter}, From, _To) when From >= Offset, From < Offset + Length -> true;
+iterate({_Offset, _Length, Iter}, From, To) -> iterate(gb_trees:next(Iter), From, To).
