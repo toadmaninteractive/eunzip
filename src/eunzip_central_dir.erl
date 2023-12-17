@@ -35,7 +35,7 @@ eocd(ZipHandle, FileSize) ->
     FileSize :: non_neg_integer(),
     CdInfo :: eunzip:cd_info(),
     Result :: {'ok', Eocd} | {'error', Reason :: atom()},
-    Eocd :: #{entries => #{filename:filename_all() => eunzip:cd_entry()}, range_tree => gb_trees:tree()}.
+    Eocd :: #{entries => #{file:filename_all() => eunzip:cd_entry()}, range_tree => gb_trees:tree()}.
 
 entries(ZipHandle, FileSize, #cd_info{cd_offset = CdOffset, cd_size = CdSize}) ->
     case eunzip_buffer:new(ZipHandle, FileSize, ?zip_chunk_size, CdOffset + CdSize, CdOffset, forward) of
