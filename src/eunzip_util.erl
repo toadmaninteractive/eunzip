@@ -112,7 +112,7 @@ open_zip(Filename) ->
 detect_compression_format(Filename) ->
   case open_zip(Filename) of 
     {ok, Data} -> 
-      <<80, 75, 3, 4, _D:4/binary, CompressionMethod:2/binary, _MoreData/binary>> = Data,
-      {ok, comp_format_binary_to_atom(CompressionMethod)};
+      <<80, 75, 3, 4, _D:4/binary, CompressionFormat:2/binary, _MoreData/binary>> = Data,
+      {ok, comp_format_binary_to_atom(CompressionFormat)};
     {error, Reason} -> {error, Reason}
   end.
