@@ -11,7 +11,8 @@
     file_start_offset/2,
     zlib_init/1,
     zlib_end/1,
-    zlib_collect/2
+    zlib_collect/2,
+    detect_compression_format/1
 ]).
 
 %% API
@@ -72,3 +73,46 @@ zlib_collect(Z, Acc, {more, Decompressed}) ->
     zlib_collect(Z, <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>, zlib:inflateChunk(Z));
 zlib_collect(_Z, Acc, Decompressed) ->
     <<Acc/binary, (iolist_to_binary(Decompressed))/binary>>.
+
+-spec comp_format_binary_to_atom(CompFormatBin) -> Result when
+  CompFormatBin :: binary(),
+  Result :: atom().
+
+comp_format_binary_to_atom(CompFormatBin) ->
+  case CompFormatBin of 
+    <<8,0>> -> deflate;
+    <<9,0>> -> deflate64;
+    <<0,0>> -> stored;
+    _ -> unknown_format
+  end.
+
+-spec open_zip(Filename) -> Result when
+  Filename :: string(),
+  Result :: {'ok', binary()} | {'error', atom()}.
+
+open_zip(Filename) ->
+  case file:open(Filename, [read, binary]) of 
+    {ok, FileDescriptor} ->
+      case file:pread(FileDescriptor, 0, 10) of 
+        {ok, Data} -> 
+          ok = file:close(FileDescriptor),
+          {ok, Data};
+        {error, Reason} -> 
+          ok = file:close(FileDescriptor),
+          {error, Reason}
+      end;
+    {error, Reason} -> {error, Reason}
+  end.
+
+%% Detect compression format
+-spec detect_compression_format(Filename) -> Result when
+  Filename :: string(),
+  Result :: {'ok', atom()} | {'error', atom()}.
+
+detect_compression_format(Filename) ->
+  case open_zip(Filename) of 
+    {ok, Data} -> 
+      <<80, 75, 3, 4, _D:4/binary, CompressionMethod:2/binary, _MoreData/binary>> = Data,
+      {ok, comp_format_binary_to_atom(CompressionMethod)};
+    {error, Reason} -> {error, Reason}
+  end.
