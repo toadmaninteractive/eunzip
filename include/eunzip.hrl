@@ -5,6 +5,7 @@
 % Compression methods
 -define(M_STORE, 0).
 -define(M_DEFLATE, 8).
+-define(M_DEFLATE64, 9).
 
 % EOCD specific
 -define(eocd_search_limit, 5 * 1024 * 1024).    % 5 MB
