@@ -4,7 +4,18 @@
 
 % Compression methods
 -define(M_STORE, 0).
+-define(M_SHRUNK, 1).
+-define(M_REDUCE_LVL1, 2).
+-define(M_REDUCE_LVL2, 3).
+-define(M_REDUCE_LVL3, 4).
+-define(M_REDUCE_LVL4, 5).
+-define(M_IMPLODE, 6).
 -define(M_DEFLATE, 8).
+-define(M_DEFLATE64, 9).
+-define(M_BZIP2, 12).
+-define(M_LZMA, 14).
+-define(M_PPMD, 15).
+-define(M_WAVPACK, 99).
 
 % EOCD specific
 -define(eocd_search_limit, 5 * 1024 * 1024).    % 5 MB

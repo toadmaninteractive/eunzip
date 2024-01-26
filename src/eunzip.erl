@@ -35,7 +35,7 @@
     zip_handle :: file:fd(),
     offset :: non_neg_integer(),
     end_offset :: non_neg_integer(),
-    compression_method :: ?M_STORE | ?M_DEFLATE | non_neg_integer(),
+    compression_method :: ?M_STORE | ?M_DEFLATE | ?M_DEFLATE64 | non_neg_integer(),
     z_stream :: zlib:zstream() | 'undefined',
     crc :: non_neg_integer(),
     acc_crc :: non_neg_integer() | 'undefined',
